@@ -89,7 +89,8 @@ body {
 .kpi-ticket { border-left-color: #2196F3; }
 .kpi-pedidos { border-left-color: #9C27B0; }
 .kpi-productos { border-left-color: var(--rosa); }
-.kpi-stock { border-left-color: var(--rojo-alerta); }
+.kpi-unidades { border-left-color: #E91E63; }  /* ← NUEVO */
+.kpi-stock { border-left-color: var(--rojo-alerta); }.kpi-stock { border-left-color: var(--rojo-alerta); }
 
 .kpi-icon { font-size: 24px; display: block; margin-bottom: 10px; }
 .kpi-title { font-size: 12px; text-transform: uppercase; color: #666; letter-spacing: 1px; }
