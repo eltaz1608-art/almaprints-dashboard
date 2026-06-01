@@ -1,75 +1,66 @@
 
-// Tu enlace oficial de SheetDB
-const API_URL = 'https://sheetdb.io/api/v1/h8btkw6u20647?sheet=CATÁLOGO_PRODUCTOS'; 
+// 1. Pega AQUÍ tu enlace de SheetDB para el CATÁLOGO
+const URL_CATALOGO = 'https://sheetdb.io/api/v1/h8btkw6u20647?sheet=CATÁLOGO_PRODUCTOS';
+// 2. Pega AQUÍ tu enlace de SheetDB para las SALIDAS
+const URL_SALIDAS = 'https://sheetdb.io/api/v1/h8btkw6u20647?sheet=REGISTRO_SALIDAS';
 
-// Función para limpiar texto y convertirlo en número (quita "S/.", comas, etc.)
-function limpiarNum(valor) {
+function limpiar(valor) {
     if (!valor) return 0;
-    const limpio = String(valor).replace(/[^0-9.-]+/g, "");
-    return parseFloat(limpio) || 0;
+    // Elimina "S/.", comas y espacios, dejando solo números
+    return parseFloat(String(valor).replace(/[^0-9.]/g, "")) || 0;
 }
 
-async function cargarDatos() {
+async function cargarDashboard() {
     try {
-        const respuesta = await fetch(API_URL);
-        const datosBrutos = await respuesta.json();
+        // Obtenemos ambos datos a la vez
+        const [resCat, resSal] = await Promise.all([fetch(URL_CATALOGO), fetch(URL_SALIDAS)]);
+        const productos = await resCat.json();
+        const ventas = await resSal.json();
 
-        // 1. FILTRO REAL: Solo tomamos filas que tengan un SKU escrito
-        const datos = datosBrutos.filter(p => p.SKU && p.SKU.trim() !== "");
-
-        // 2. Calcular Productos Activos
-        const activos = datos.filter(p => p.ESTADO === 'Activo').length;
-        
-        // 3. Calcular Alertas de Stock (Solo productos con Stock <= Mínimo y Stock Mínimo > 0)
-        const alertas = datos.filter(p => {
-            let act = limpiarNum(p.STOCK_ACTUAL);
-            let min = limpiarNum(p.STOCK_MINIMO);
-            return (act <= min && min > 0);
-        }).length;
-
-        // 4. Calcular Valor Inventario (Stock * Costo)
-        let totalValor = 0;
-        datos.forEach(p => {
-            totalValor += (limpiarNum(p.STOCK_ACTUAL) * limpiarNum(p.COSTO_UNITARIO));
+        // Cálculo 1: Total Ventas (Suma de la columna TOTAL_SALIDA)
+        let totalIngresos = 0;
+        ventas.forEach(v => {
+            if(v.TOTAL_SALIDA) totalIngresos += limpiar(v.TOTAL_SALIDA);
         });
 
-        // 5. Inyectar valores al HTML
-        document.getElementById('totalVentas').innerText = "S/. " + totalValor.toFixed(2);
+        // Cálculo 2: Productos Activos
+        const activos = productos.filter(p => p.ESTADO === "Activo").length;
+
+        // Cálculo 3: Alertas de Stock
+        const alertas = productos.filter(p => {
+            let actual = limpiar(p.STOCK_ACTUAL);
+            let min = limpiar(p.STOCK_MINIMO);
+            return (actual <= min && min > 0);
+        }).length;
+
+        // Actualizar UI
+        document.getElementById('totalVentas').innerText = "S/. " + totalIngresos.toFixed(2);
         document.getElementById('totalProductos').innerText = activos;
         document.getElementById('alertasStock').innerText = alertas;
 
-        // 6. Dibujar gráfico
-        dibujarGrafico(datos);
+        // Gráfico
+        renderGrafico(productos);
 
-    } catch (error) {
-        console.error("Error al conectar:", error);
+    } catch (e) {
+        console.error("Error al cargar datos:", e);
     }
 }
 
-function dibujarGrafico(datos) {
+function renderGrafico(productos) {
     const ctx = document.getElementById('graficoVentas').getContext('2d');
-    
-    // Solo tomamos los datos reales para el gráfico
-    const labels = datos.map(p => p.NOMBRE_PRODUCTO + ' (' + p.TALLA + ')');
-    const valores = datos.map(p => limpiarNum(p.STOCK_ACTUAL));
-
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labels,
+            labels: productos.map(p => p.NOMBRE_PRODUCTO),
             datasets: [{
-                label: 'Stock Actual',
-                data: valores,
+                label: 'Stock',
+                data: productos.map(p => limpiar(p.STOCK_ACTUAL)),
                 backgroundColor: '#DDA7A5',
                 borderColor: '#3E2723',
-                borderWidth: 2
+                borderWidth: 1
             }]
-        },
-        options: {
-            responsive: true,
-            scales: { y: { beginAtZero: true } }
         }
     });
 }
 
-cargarDatos();
+cargarDashboard();
