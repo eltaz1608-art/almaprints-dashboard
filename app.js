@@ -1,87 +1,75 @@
 
-// Tu enlace oficial de SheetDB conectado a la pestaña del catálogo
+// Tu enlace oficial de SheetDB
 const API_URL = 'https://sheetdb.io/api/v1/h8btkw6u20647?sheet=CATÁLOGO_PRODUCTOS'; 
+
+// Función para limpiar texto y convertirlo en número (quita "S/.", comas, etc.)
+function limpiarNum(valor) {
+    if (!valor) return 0;
+    const limpio = String(valor).replace(/[^0-9.-]+/g, "");
+    return parseFloat(limpio) || 0;
+}
 
 async function cargarDatos() {
     try {
         const respuesta = await fetch(API_URL);
         const datosBrutos = await respuesta.json();
 
-        // 🔥 FILTRO MÁGICO 1: Eliminar las filas vacías de Google Sheets
-        // Solo nos quedamos con los productos que tienen un SKU escrito
-        const datos = datosBrutos.filter(polo => polo.SKU && polo.SKU.trim() !== "");
+        // 1. FILTRO REAL: Solo tomamos filas que tengan un SKU escrito
+        const datos = datosBrutos.filter(p => p.SKU && p.SKU.trim() !== "");
 
-        // 1. Calcular Productos Activos
-        const productosActivos = datos.filter(polo => polo.ESTADO === 'Activo').length;
+        // 2. Calcular Productos Activos
+        const activos = datos.filter(p => p.ESTADO === 'Activo').length;
         
-        // 2. Calcular Alertas de Stock Reales
-        const alertasStock = datos.filter(polo => {
-            const stockAct = Number(polo.STOCK_ACTUAL) || 0;
-            const stockMin = Number(polo.STOCK_MINIMO) || 0;
-            // Solo avisa si el stock es menor/igual al mínimo, y descarta los que tienen 0 mínimo
-            return stockAct <= stockMin && stockMin > 0; 
+        // 3. Calcular Alertas de Stock (Solo productos con Stock <= Mínimo y Stock Mínimo > 0)
+        const alertas = datos.filter(p => {
+            let act = limpiarNum(p.STOCK_ACTUAL);
+            let min = limpiarNum(p.STOCK_MINIMO);
+            return (act <= min && min > 0);
         }).length;
 
-        // 3. Calcular Valor del Inventario (Reparando el error NaN)
-        let valorInventario = 0;
-        datos.forEach(polo => {
-            // 🔥 FILTRO MÁGICO 2: Limpiamos el "S/." para convertirlo en un número puro
-            let costoLimpio = polo.COSTO_UNITARIO ? String(polo.COSTO_UNITARIO).replace(/[^0-9.-]+/g,"") : "0";
-            let stockLimpio = polo.STOCK_ACTUAL ? String(polo.STOCK_ACTUAL).replace(/[^0-9.-]+/g,"") : "0";
-            
-            let costoNum = parseFloat(costoLimpio) || 0;
-            let stockNum = parseFloat(stockLimpio) || 0;
-
-            valorInventario += (stockNum * costoNum);
+        // 4. Calcular Valor Inventario (Stock * Costo)
+        let totalValor = 0;
+        datos.forEach(p => {
+            totalValor += (limpiarNum(p.STOCK_ACTUAL) * limpiarNum(p.COSTO_UNITARIO));
         });
 
-        // 4. Inyectar los números limpios y correctos en la web
-        document.getElementById('totalVentas').innerText = "S/. " + valorInventario.toFixed(2);
-        document.getElementById('totalProductos').innerText = productosActivos;
-        document.getElementById('alertasStock').innerText = alertasStock;
+        // 5. Inyectar valores al HTML
+        document.getElementById('totalVentas').innerText = "S/. " + totalValor.toFixed(2);
+        document.getElementById('totalProductos').innerText = activos;
+        document.getElementById('alertasStock').innerText = alertas;
 
-        // 5. Dibujar el gráfico solo con los datos reales
+        // 6. Dibujar gráfico
         dibujarGrafico(datos);
 
     } catch (error) {
-        console.error("Hubo un error al conectar con Google Sheets:", error);
+        console.error("Error al conectar:", error);
     }
 }
 
-// Función para crear el gráfico
 function dibujarGrafico(datos) {
     const ctx = document.getElementById('graficoVentas').getContext('2d');
     
-    // Extraemos los nombres (ej: "Mamá Residency (S)")
-    const nombres = datos.map(item => item.NOMBRE_PRODUCTO + ' (' + item.TALLA + ')');
-    
-    // Extraemos y limpiamos el stock
-    const cantidades = datos.map(item => {
-        let stockLimpio = item.STOCK_ACTUAL ? String(item.STOCK_ACTUAL).replace(/[^0-9.-]+/g,"") : "0";
-        return parseFloat(stockLimpio) || 0;
-    });
+    // Solo tomamos los datos reales para el gráfico
+    const labels = datos.map(p => p.NOMBRE_PRODUCTO + ' (' + p.TALLA + ')');
+    const valores = datos.map(p => limpiarNum(p.STOCK_ACTUAL));
 
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: nombres,
+            labels: labels,
             datasets: [{
-                label: 'Unidades en Stock',
-                data: cantidades,
-                backgroundColor: '#DDA7A5', // Color Rosa Palo de Alma Prints
-                borderColor: '#3E2723', // Color Marrón de Alma Prints
-                borderWidth: 2,
-                borderRadius: 5
+                label: 'Stock Actual',
+                data: valores,
+                backgroundColor: '#DDA7A5',
+                borderColor: '#3E2723',
+                borderWidth: 2
             }]
         },
         options: {
             responsive: true,
-            scales: {
-                y: { beginAtZero: true }
-            }
+            scales: { y: { beginAtZero: true } }
         }
     });
 }
 
-// Iniciar todo al abrir la página
 cargarDatos();
