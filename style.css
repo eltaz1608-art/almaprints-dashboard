@@ -32,10 +32,18 @@ body {
     text-align: center;
 }
 
-.logo {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--blanco);
+/* 🖼️ LOGO - Aquí está el código del logo */
+.logo-img {
+    height: 80px;
+    width: auto;
+    display: block;
+    margin: 0 auto 10px;
+    border-radius: 12px;
+}
+
+/* Ocultar el texto anterior del logo */
+.header .logo {
+    display: none;
 }
 
 .tagline {
@@ -76,7 +84,6 @@ body {
     display: grid;
     gap: 15px;
     margin: 20px 0;
-    /* Default: 2 columnas */
     grid-template-columns: repeat(2, 1fr);
 }
 
@@ -108,7 +115,7 @@ body {
     display: grid;
     gap: 15px;
     margin: 20px 0;
-    grid-template-columns: 1fr; /* Default: 1 columna */
+    grid-template-columns: 1fr;
 }
 
 .chart-box {
@@ -121,7 +128,6 @@ body {
 
 .chart-box h3 { color: var(--marron); margin-bottom: 15px; font-size: 16px; }
 
-/* Canvas responsivo */
 .chart-box canvas {
     max-height: 250px;
     width: 100% !important;
@@ -134,7 +140,7 @@ body {
     padding: 15px;
     box-shadow: 0 2px 10px rgba(62, 39, 35, 0.1);
     margin: 20px 0;
-    overflow-x: auto; /* Scroll horizontal si es pequeño */
+    overflow-x: auto;
 }
 
 .alerts-section h3 { color: var(--marron); margin-bottom: 15px; font-size: 16px; }
@@ -177,111 +183,55 @@ footer {
     font-size: 11px;
 }
 
-/* ============================================
-   📱 TABLETS (iPads) - 768px y mayor
-   ============================================ */
+/* 📱 TABLETS - 768px */
 @media (min-width: 768px) {
     .header { padding: 25px; }
-    .logo { font-size: 32px; }
+    .logo-img { height: 90px; }
     .tagline { font-size: 13px; }
     
-    .btn-refresh {
-        padding: 14px 28px;
-        font-size: 15px;
-    }
+    .btn-refresh { padding: 14px 28px; font-size: 15px; }
     
-    .kpi-grid {
-        grid-template-columns: repeat(3, 1fr); /* 3 columnas */
-        gap: 20px;
-    }
-    
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
     .kpi-card { padding: 20px; }
     .kpi-icon { font-size: 22px; }
-    .kpi-title { font-size: 11px; }
     .kpi-value { font-size: 24px; }
     
-    .charts-section {
-        grid-template-columns: repeat(2, 1fr); /* 2 columnas */
-        gap: 20px;
-    }
-    
+    .charts-section { grid-template-columns: repeat(2, 1fr); gap: 20px; }
     .chart-box { padding: 20px; min-height: 300px; }
     .chart-box canvas { max-height: 300px; }
-    
-    .alerts-table { font-size: 13px; }
-    .alerts-table th, .alerts-table td { padding: 12px 10px; }
 }
 
-/* ============================================
-   💻 LAPTOP/ESCRITORIO - 1024px y mayor
-   ============================================ */
+/* 💻 LAPTOP - 1024px */
 @media (min-width: 1024px) {
     .header { padding: 30px; }
-    .logo { font-size: 36px; }
+    .logo-img { height: 100px; }
     .tagline { font-size: 14px; }
     
     .container { padding: 20px; }
     
-    .btn-refresh {
-        padding: 15px 30px;
-        font-size: 16px;
-        max-width: none;
-        width: auto;
-    }
+    .btn-refresh { padding: 15px 30px; font-size: 16px; max-width: none; width: auto; }
     
-    .kpi-grid {
-        grid-template-columns: repeat(4, 1fr); /* 4 columnas */
-        gap: 20px;
-        margin: 30px 0;
-    }
-    
-    .kpi-card {
-        padding: 25px;
-        border-radius: 16px;
-    }
+    .kpi-grid { grid-template-columns: repeat(4, 1fr); gap: 20px; margin: 30px 0; }
+    .kpi-card { padding: 25px; border-radius: 16px; }
     .kpi-icon { font-size: 24px; margin-bottom: 10px; }
-    .kpi-title { font-size: 12px; }
     .kpi-value { font-size: 28px; margin-top: 10px; }
     
-    .charts-section {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-        margin: 30px 0;
-    }
-    
-    .chart-box {
-        padding: 25px;
-        border-radius: 16px;
-        min-height: 350px;
-    }
+    .charts-section { grid-template-columns: repeat(2, 1fr); gap: 20px; margin: 30px 0; }
+    .chart-box { padding: 25px; border-radius: 16px; min-height: 350px; }
     .chart-box h3 { font-size: 18px; margin-bottom: 20px; }
     .chart-box canvas { max-height: 350px; }
     
-    .alerts-section {
-        padding: 25px;
-        margin: 30px 0;
-        border-radius: 16px;
-    }
+    .alerts-section { padding: 25px; margin: 30px 0; border-radius: 16px; }
     .alerts-section h3 { font-size: 18px; margin-bottom: 20px; }
-    
-    .alerts-table {
-        font-size: 14px;
-    }
-    .alerts-table th {
-        padding: 15px;
-    }
+    .alerts-table { font-size: 14px; }
+    .alerts-table th { padding: 15px; }
     .alerts-table td { padding: 12px; }
     
     footer { padding: 30px; font-size: 12px; }
 }
 
-/* ============================================
-   🎯 PANTALLAS MUY GRANDES - 1400px+
-   ============================================ */
+/* 🎯 PANTALLAS GRANDES - 1400px+ */
 @media (min-width: 1400px) {
-    .kpi-grid {
-        grid-template-columns: repeat(7, 1fr); /* 7KPIs en una fila */
-    }
-    
+    .kpi-grid { grid-template-columns: repeat(7, 1fr); }
     .kpi-value { font-size: 32px; }
 }
