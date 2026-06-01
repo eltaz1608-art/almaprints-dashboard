@@ -1,39 +1,40 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD
+// ALMA PRINTS - DASHBOARD v2 (CON DEBUG)
 // ==========================================
 
-// 📋 TU SHEET ID - CONFIGURADO ✅
 const CONFIG = {
     SHEET_ID: '1yDpg679-IZ-oJmn4MclEqOdp6czLfPdG5GMGbdqZTtk'
 };
 
-// URLs dinâmicas
 const getSheetURL = (sheetName) => 
     `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}`;
 
 // ==========================================
-// PRINCIPAL
+// DEBUG: Ver qué columnas tiene tu Sheets
 // ==========================================
 
 async function fetchSheet(sheetName) {
     try {
         const url = getSheetURL(sheetName);
         const response = await fetch(url);
-        if (!response.ok) throw new Error('Network error');
+        if (!response.ok) throw new Error('Error: ' + response.status);
         const csvText = await response.text();
         return parseCSV(csvText);
     } catch (error) {
-        console.error('Error:', error);
+        console.error(`Error ${sheetName}:`, error);
         return [];
     }
 }
 
 function parseCSV(text) {
     const lines = text.trim().split('\n');
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    console.log('📋 Filas encontradas:', lines.length);
     
-    return lines.slice(1).map(line => {
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    console.log('📊 Encabezados:', headers);
+    
+    const data = lines.slice(1).map(line => {
         const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
         const obj = {};
         headers.forEach((header, index) => {
@@ -41,7 +42,13 @@ function parseCSV(text) {
         });
         return obj;
     });
+    
+    return data;
 }
+
+// ==========================================
+// PRINCIPAL
+// ==========================================
 
 async function actualizarDashboard() {
     const btn = document.querySelector('.btn-refresh');
@@ -49,10 +56,18 @@ async function actualizarDashboard() {
     btn.disabled = true;
     
     try {
-        const [catalogo, ventas] = await Promise.all([
-            fetchSheet('CATÁLOGO_PRODUCTOS'),
-            fetchSheet('REGISTRO_SALIDAS')
-        ]);
+        console.log('🔄 Descargando datos...');
+        
+        const catalogo = await fetchSheet('CATÁLOGO_PRODUCTOS');
+        const ventas = await fetchSheet('REGISTRO_SALIDAS');
+        
+        console.log('📦 Productos:', catalogo.length);
+        console.log('💰 Ventas:', ventas.length);
+        
+        // Si no hay datos, probar con nombres alternativos
+        if (catalogo.length === 0) {
+            console.log('⚠️ Probando hojas alternativas...');
+        }
         
         calcularKPIs(catalogo, ventas);
         generarGraficos(ventas, catalogo);
@@ -63,8 +78,10 @@ async function actualizarDashboard() {
             dateStyle: 'medium',
             timeStyle: 'short'
         });
+        
     } catch (error) {
-        alert('⚠️ Error al cargar. Verifica que el Sheets esté PÚBLICO.');
+        console.error('Error completo:', error);
+        alert('⚠️ Error: ' + error.message);
     }
     
     btn.textContent = '🔄 Actualizar Datos';
@@ -72,24 +89,48 @@ async function actualizarDashboard() {
 }
 
 // ==========================================
-// KPIs
+// KPIs ( Adaptable)
 // ==========================================
 
 function calcularKPIs(catalogo, ventas) {
     let ingresos = 0, pedidos = 0, productosActivos = 0, stockBajo = 0;
     
+    // Detectar nombres de columnas
+    const ventaKeys = ventas[0] ? Object.keys(ventas[0]) : {};
+    const productoKeys = catalogo[0] ? Object.keys(catalogo[0]) : {};
+    
+    console.log('🔑 Columnas Venta:', ventaKeys);
+    console.log('🔑 Columnas Producto:', productoKeys);
+    
+    // Buscar columna de forma flexible
+    const colTotalVenta = ventaKeys.find(k => k.includes('TOTAL')) || 'TOTAL_SALIDA';
+    const colTipoVenta = ventaKeys.find(k => k.includes('TIPO')) || 'TIPO_SALIDA';
+    const colCanal = ventaKeys.find(k => k.includes('CANAL')) || 'CANAL_VENTA';
+    
+    const colStock = productoKeys.find(k => k.includes('STOCK') && k.includes('ACTUAL')) || 'STOCK_ACTUAL';
+    const colStockMin = productoKeys.find(k => k.includes('MIN')) || 'STOCK_MINIMO';
+    const colEstado = productoKeys.find(k => k.includes('ESTADO')) || 'ESTADO';
+    const colNombre = productoKeys.find(k => k.includes('NOMBRE')) || 'NOMBRE_PRODUCTO';
+    const colSKU = productoKeys.find(k => k.includes('SKU')) || 'SKU';
+    
+    console.log('📌 Usando columnas:', {colTotalVenta, colTipoVenta, colStock, colStockMin, colEstado});
+    
+    // Calcular ventas
     ventas.forEach(v => {
-        if (v.TIPO_SALIDA === 'Venta' && v.TOTAL_SALIDA) {
-            ingresos += parseFloat(v.TOTAL_SALIDA) || 0;
+        const total = parseFloat(v[colTotalVenta]) || 0;
+        const tipo = v[colTipoVenta] || '';
+        if ((tipo === 'Venta' || tipo === '') && total > 0) {
+            ingresos += total;
             pedidos++;
         }
     });
     
+    // Calcular inventario
     catalogo.forEach(p => {
-        if (p.ESTADO === 'Activo') {
+        if (p[colEstado] === 'Activo' || p[colEstado] === 'activo' || p[colEstado] === '') {
             productosActivos++;
-            const stock = parseFloat(p.STOCK_ACTUAL) || 0;
-            const min = parseFloat(p.STOCK_MINIMO) || 0;
+            const stock = parseFloat(p[colStock]) || 0;
+            const min = parseFloat(p[colStockMin]) || 0;
             if (stock < min) stockBajo++;
         }
     });
@@ -103,6 +144,8 @@ function calcularKPIs(catalogo, ventas) {
     document.getElementById('kpi-pedidos').textContent = pedidos;
     document.getElementById('kpi-productos').textContent = productosActivos;
     document.getElementById('kpi-stock').textContent = stockBajo;
+    
+    console.log('✅ KPI Result:', {ingresos, pedidos, productosActivos, stockBajo});
 }
 
 function formatCurrency(amount) {
@@ -116,11 +159,21 @@ function formatCurrency(amount) {
 let chartCanales, chartCategorias;
 
 function generarGraficos(ventas, catalogo) {
+    const ventaKeys = Object.keys(ventas[0] || {});
+    const productoKeys = Object.keys(catalogo[0] || {});
+    
+    const colCanal = ventaKeys.find(k => k.includes('CANAL')) || 'CANAL_VENTA';
+    const colTotalVenta = ventaKeys.find(k => k.includes('TOTAL')) || 'TOTAL_SALIDA';
+    const colTipoVenta = ventaKeys.find(k => k.includes('TIPO')) || 'TIPO_SALIDA';
+    const colCategoria = productoKeys.find(k => k.includes('CATEGOR')) || 'CATEGORÍA';
+    
     // Canales
     const canales = {};
     ventas.forEach(v => {
-        if (v.TIPO_SALIDA === 'Venta' && v.CANAL_VENTA) {
-            canales[v.CANAL_VENTA] = (canales[v.CANAL_VENTA] || 0) + (parseFloat(v.TOTAL_SALIDA) || 0);
+        const total = parseFloat(v[colTotalVenta]) || 0;
+        const tipo = v[colTipoVenta] || '';
+        if ((tipo === 'Venta' || tipo === '') && total > 0 && v[colCanal]) {
+            canales[v[colCanal]] = (canales[v[colCanal]] || 0) + total;
         }
     });
     
@@ -130,7 +183,7 @@ function generarGraficos(ventas, catalogo) {
         type: 'doughnut',
         data: {
             labels: Object.keys(canales),
-            datasets: [{ data: Object.values(canales), backgroundColor: ['#E1306C', '#25D366', '#3b5998', '#FFD700'], borderWidth: 0 }]
+            datasets: [{ data: Object.values(canales), backgroundColor: ['#E1306C', '#25D366', '#3b5998', '#FFD700', '#DDA7A5'], borderWidth: 0 }]
         },
         options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
     });
@@ -138,7 +191,7 @@ function generarGraficos(ventas, catalogo) {
     // Categorías
     const categorias = {};
     catalogo.forEach(p => {
-        if (p.CATEGORÍA) categorias[p.CATEGORÍA] = (categorias[p.CATEGORÍA] || 0) + 1;
+        if (p[colCategoria]) categorias[p[colCategoria]] = (categorias[p[colCategoria]] || 0) + 1;
     });
     
     const ctxCategorias = document.getElementById('chart-categorias');
@@ -149,7 +202,7 @@ function generarGraficos(ventas, catalogo) {
             labels: Object.keys(categorias),
             datasets: [{ label: 'Productos', data: Object.values(categorias), backgroundColor: '#DDA7A5', borderRadius: 8 }]
         },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } }
     });
 }
 
@@ -161,10 +214,17 @@ function mostrarAlertas(catalogo) {
     const tbody = document.getElementById('alerts-body');
     let html = '';
     
+    const productoKeys = Object.keys(catalogo[0] || {});
+    const colStock = productoKeys.find(k => k.includes('STOCK') && k.includes('ACTUAL')) || 'STOCK_ACTUAL';
+    const colStockMin = productoKeys.find(k => k.includes('MIN')) || 'STOCK_MINIMO';
+    const colEstado = productoKeys.find(k => k.includes('ESTADO')) || 'ESTADO';
+    const colNombre = productoKeys.find(k => k.includes('NOMBRE')) || 'NOMBRE_PRODUCTO';
+    const colSKU = productoKeys.find(k => k.includes('SKU')) || 'SKU';
+    
     const productosBajoStock = catalogo.filter(p => {
-        const stock = parseFloat(p.STOCK_ACTUAL) || 0;
-        const min = parseFloat(p.STOCK_MINIMO) || 0;
-        return p.ESTADO === 'Activo' && stock < min;
+        const stock = parseFloat(p[colStock]) || 0;
+        const min = parseFloat(p[colStockMin]) || 0;
+        return (p[colEstado] === 'Activo' || p[colEstado] === 'activo' || p[colEstado] === '') && stock < min;
     });
     
     if (productosBajoStock.length === 0) {
@@ -172,10 +232,10 @@ function mostrarAlertas(catalogo) {
     } else {
         productosBajoStock.forEach(p => {
             html += `<tr>
-                <td>${p.NOMBRE_PRODUCTO}</td>
-                <td>${p.SKU}</td>
-                <td>${p.STOCK_ACTUAL}</td>
-                <td>${p.STOCK_MINIMO}</td>
+                <td>${p[colNombre]}</td>
+                <td>${p[colSKU]}</td>
+                <td>${p[colStock]}</td>
+                <td>${p[colStockMin]}</td>
                 <td><span class="alerta-badge">⚠️ BAJO</span></td>
             </tr>`;
         });
@@ -184,5 +244,4 @@ function mostrarAlertas(catalogo) {
     tbody.innerHTML = html;
 }
 
-// Iniciar automáticamente
 window.onload = actualizarDashboard;
