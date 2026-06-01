@@ -1,16 +1,24 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v12 FINAL
+// ALMA PRINTS - DASHBOARD v13 (FIX)
 // ==========================================
 
 // 💾 Tus hojas publicadas
 const URL_CATALOGO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=1986570963&single=true&output=csv';
 const URL_VENTAS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=2131622946&single=true&output=csv';
 
-// ⭐ Función para limpiar valores de moneda
+// ⭐ Mejor función para limpiar valores
 function limpiarNumero(valor) {
     if (!valor) return 0;
-    return parseFloat(String(valor).replace('S/.', '').replace(/,/g, '').trim()) || 0;
+    // Quitar S/., comas, espacios
+    const limpio = String(valor)
+        .replace(/S\/\.\s*/g, '')  // S/. o S/.
+        .replace(/,/g, '')       // comas de miles
+        .trim();
+    const num = parseFloat(limpio);
+    // ⭐ Validar: si es muy pequeño o muy grande, ignorar
+    if (isNaN(num) || num < 0.1 || num > 50000) return 0;
+    return num;
 }
 
 // 📥 Descargar CSV
@@ -23,6 +31,10 @@ async function fetchCSV(url) {
 function parsearCSV(text) {
     const lineas = text.trim().split('\n');
     const headers = lineas[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    // ⭐ Debug: mostrar headers
+    console.log('📋 Headers:', headers);
+    
     return lineas.slice(1).map(linea => {
         const valores = linea.split(',').map(v => v.trim().replace(/"/g, ''));
         const obj = {};
@@ -42,6 +54,9 @@ async function actualizarDashboard() {
         const catalogo = parsearCSV(csvCat);
         const ventas = parsearCSV(csvVen);
         
+        console.log('📦 Productos:', catalogo.length);
+        console.log('💰 Ventas:', ventas.length);
+        
         calcularKPIs(catalogo, ventas);
         generarGraficos(ventas, catalogo);
         mostrarAlertas(catalogo);
@@ -59,17 +74,23 @@ async function actualizarDashboard() {
 function calcularKPIs(catalogo, ventas) {
     let ingresos = 0, pedidos = 0, activos = 0, bajoStock = 0, costoTotal = 0, unidadesTotal = 0;
     
-    ventas.forEach(v => {
+    ventas.forEach((v, idx) => {
+        // ⭐ Obtener valores
         const total = limpiarNumero(v['TOTAL_SALIDA']);
-        const cant = limpiarNumero(v['CANTIDAD']);
-        const sku = v['SKU'];
+        const cant = limparNumero(v['CANTIDAD']);
+        const sku = v['SKU'] || '';
+        const canal = v['CANAL_VENTA'] || '';
         
-        if (cant > 0 && total > 0) {
+        // ⭐ Debug cada venta
+        console.log(`V${idx}: SKU=${sku}, CANAL=${canal}, CANT=${cant}, TOTAL=${total}`);
+        
+        // ⭐ Validar: debe tener SKU, cantidad > 0, total > 0 y parece realista
+        if (sku && cant > 0 && total > 0 && total < 10000) {
             const producto = catalogo.find(p => p['SKU'] === sku);
             const costoUnit = producto ? limpiarNumero(producto['COSTO_UNITARIO']) : 0;
             const costoVenta = costoUnit * cant;
             
-            console.log(`✅ ${sku}: ${cant} × S/ ${total/cant}`);
+            console.log(`  ✅ Válido: ${cant} × S/ ${total/cant}, costo: S/ ${costoUnit} × ${cant}`);
             
             ingresos += total;
             costoTotal += costoVenta;
@@ -98,29 +119,37 @@ function calcularKPIs(catalogo, ventas) {
     document.getElementById('kpi-unidades').textContent = unidadesTotal;
     document.getElementById('kpi-productos').textContent = activos;
     document.getElementById('kpi-stock').textContent = bajoStock;
+    
+    console.log('=== RESUMEN ===');
+    console.log('💰 Ingresos:', ingresos);
+    console.log('📦 Costo:', costoTotal);
+    console.log('✨ Beneficio:', beneficio);
 }
 
 // 📊 Gráficos
 let chCanales, chCategorias;
 
 function generarGraficos(ventas, catalogo) {
-    const canales = {'Instagram':0,'WhatsApp':0,'Web':0,'Presencial':0,'Marketplace':0,'Otro':0};
+    const canales = {};
     ventas.forEach(v => {
         const t = limpiarNumero(v['TOTAL_SALIDA']);
-        const c = v['CANAL_VENTA'] || 'Otro';
-        if (t > 0) canales[c] = (canales[c] || 0) + t;
+        const sku = v['SKU'] || '';
+        const c = v['CANAL_VENTA'] || '';
+        // Solo gráfico si es válido
+        if (sku && t > 0 && t < 10000) {
+            canales[c] = (canales[c] || 0) + t;
+        }
     });
-    Object.keys(canales).forEach(k => { if(canales[k]===0) delete canales[k]; });
     
     const ctxC = document.getElementById('chart-canales');
     if (chCanales) chCanales.destroy();
     chCanales = new Chart(ctxC, {
         type: 'doughnut',
         data: {
-            labels: Object.keys(canales),
-            datasets: [{data: Object.values(canales), backgroundColor: ['#E1306C','#25D366','#3b5998','#FFD700','#9C27B0']}]
+            labels: Object.keys(canales).length ? Object.keys(canales) : ['Sin datos'],
+            datasets: [{data: Object.values(canales).length || [1], backgroundColor: ['#E1306C','#25D366','#3b5998','#FFD700','#9C27B0']}]
         },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        options: { responsive: true }
     });
     
     const cats = {};
