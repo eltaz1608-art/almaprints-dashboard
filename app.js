@@ -1,27 +1,19 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v7 FINAL
+// ALMA PRINTS - DASHBOARD v8 (CON DEBUG)
 // ==========================================
 
-// 💾 TUS ENLACES PUBLICADOS
 const URL_CATALOGO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=1986570963&single=true&output=csv';
-
 const URL_VENTAS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=2131622946&single=true&output=csv';
 
 async function fetchCSV(url, nombre) {
-    console.log(`📥 Descargando ${nombre}...`);
     const response = await fetch(url);
-    const text = await response.text();
-    console.log(`📄 ${nombre} (primeros 150):`, text.substring(0, 150));
-    return text;
+    return response.text();
 }
 
 function parsearCSV(text) {
     const lineas = text.trim().split('\n');
     const headers = lineas[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    
-    console.log('📊 Encabezados:', headers);
-    
     return lineas.slice(1).map(linea => {
         const valores = linea.split(',').map(v => v.trim().replace(/"/g, ''));
         const obj = {};
@@ -36,8 +28,6 @@ async function actualizarDashboard() {
     btn.disabled = true;
     
     try {
-        console.log('=== 🚀 INICIO ===');
-        
         const [csvCat, csvVen] = await Promise.all([
             fetchCSV(URL_CATALOGO, 'Catálogo'),
             fetchCSV(URL_VENTAS, 'Ventas')
@@ -49,11 +39,14 @@ async function actualizarDashboard() {
         console.log('📦 Productos:', catalogo.length);
         console.log('💰 Ventas:', ventas.length);
         
-        if (catalogo.length > 0) {
-            console.log('👀 Primer producto:', catalogo[0]);
-        }
+        // 🔍 DEBUG: Ver estructura real de una venta
         if (ventas.length > 0) {
-            console.log('💵 Primera venta:', ventas[0]);
+            console.log('💵 PRIMERA VENTA COMPLETA:', JSON.stringify(ventas[0], null, 2));
+        }
+        
+        // 🔍 DEBUG: Ver estructura real de un producto
+        if (catalogo.length > 0) {
+            console.log('📦 PRIMER PRODUCTO COMPLETO:', JSON.stringify(catalogo[0], null, 2));
         }
         
         calcularKPIs(catalogo, ventas);
@@ -63,31 +56,38 @@ async function actualizarDashboard() {
         document.getElementById('last-update').textContent = new Date().toLocaleString('es-PE', {timeZone: 'America/Lima'});
         
     } catch (error) {
-        console.error('❌ Error:', error);
-        alert('Error: ' + error.message);
+        console.error('Error:', error);
     }
     
     btn.textContent = '🔄 Actualizar Datos';
     btn.disabled = false;
 }
 
-// KPIs
 function calcularKPIs(catalogo, ventas) {
     let ingresos = 0, pedidos = 0, activos = 0, bajoStock = 0;
     
-    // Ventas
-    ventas.forEach(v => {
-        const total = parseFloat(v['TOTAL_SALIDA']) || parseFloat(v['TOTAL']) || 0;
+    // ⭐ CLAVE: Ver exactitud de cada campo
+    console.log('=== 🔍 PROCESANDO VENTAS ===');
+    ventas.forEach((v, i) => {
+        const keys = Object.keys(v);
+        console.log(`V${i} keys:`, keys);
+        console.log(`V${i} TOTAL_SALIDA=`, v['TOTAL_SALIDA'], 'tipo:', typeof v['TOTAL_SALIDA']);
+        console.log(`V${i} CANTIDAD=`, v['CANTIDAD']);
+        console.log(`V${i} CANAL_VENTA=`, v['CANAL_VENTA']);
+        
+        const total = parseFloat(v['TOTAL_SALIDA']) || 0;
         const cant = parseFloat(v['CANTIDAD']) || 0;
+        
         if (cant > 0 && total > 0) {
             ingresos += total;
             pedidos++;
         }
     });
     
-    // Catálogo
-    catalogo.forEach(p => {
-        const nombre = p['NOMBRE_PRODUCTO'] || p['NOMBRE'] || '';
+    console.log('=== 🔍 PROCESANDO PRODUCTOS ===');
+    catalogo.slice(0,3).forEach((p, i) => {
+        console.log(`P${i}: NOMBRE=${p['NOMBRE_PRODUCTO']}, STOCK=${p['STOCK_ACTUAL']}, MINIMO=${p['STOCK_MINIMO']}, ESTADO=${p['ESTADO']}`);
+        
         const stock = parseFloat(p['STOCK_ACTUAL']) || 0;
         const min = parseFloat(p['STOCK_MINIMO']) || 0;
         const estado = p['ESTADO'] || '';
@@ -108,10 +108,9 @@ function calcularKPIs(catalogo, ventas) {
     document.getElementById('kpi-productos').textContent = activos;
     document.getElementById('kpi-stock').textContent = bajoStock;
     
-    console.log('✅ RESULTADO:', {ingresos, pedidos, activos, bajoStock});
+    console.log('✅ FINAL:', {ingresos, pedidos, activos, bajoStock});
 }
 
-// Gráficos
 let chC, chCat;
 
 function generarGraficos(ventas, catalogo) {
