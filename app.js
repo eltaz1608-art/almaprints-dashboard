@@ -1,20 +1,14 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v10 FINAL
+// ALMA PRINTS - DASHBOARD v11 (BENEFICIO REAL)
 // ==========================================
 
 const URL_CATALOGO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=1986570963&single=true&output=csv';
 const URL_VENTAS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=2131622946&single=true&output=csv';
 
-// ⭐ LIMPIAR MONEDA CORRECTAMENTE
 function limpiarNumero(valor) {
     if (!valor) return 0;
-    const limpio = String(valor)
-        .replace('S/.', '')
-        .replace('S/. ', '')
-        .replace(/,/g, '')
-        .trim();
-    return parseFloat(limpio) || 0;
+    return parseFloat(String(valor).replace('S/.', '').replace(/,/g, '').trim()) || 0;
 }
 
 async function fetchCSV(url) {
@@ -35,45 +29,45 @@ function parsearCSV(text) {
 
 async function actualizarDashboard() {
     const btn = document.querySelector('.btn-refresh');
-    btn.textContent = '⏳ Cargando...';
+    btn.textContent = '⏳';
     btn.disabled = true;
     
     try {
-        const [csvCat, csvVen] = await Promise.all([
-            fetchCSV(URL_CATALOGO),
-            fetchCSV(URL_VENTAS)
-        ]);
-        
+        const [csvCat, csvVen] = await Promise.all([fetchCSV(URL_CATALOGO), fetchCSV(URL_VENTAS)]);
         const catalogo = parsearCSV(csvCat);
         const ventas = parsearCSV(csvVen);
-        
-        console.log('📦:', catalogo.length, '💰:', ventas.length);
         
         calcularKPIs(catalogo, ventas);
         generarGraficos(ventas, catalogo);
         mostrarAlertas(catalogo);
         
         document.getElementById('last-update').textContent = new Date().toLocaleString('es-PE');
-    } catch (e) {
-        console.error(e);
-    }
+    } catch (e) { console.error(e); }
     
-    btn.textContent = '🔄 Actualizar Datos';
+    btn.textContent = '🔄';
     btn.disabled = false;
 }
 
-// KPIs
+// ⭐ BENEFICIO REAL
 function calcularKPIs(catalogo, ventas) {
-    let ingresos = 0, pedidos = 0, activos = 0, bajoStock = 0;
+    let ingresos = 0, pedidos = 0, activos = 0, bajoStock = 0, costoTotal = 0;
     
     ventas.forEach(v => {
         const total = limpiarNumero(v['TOTAL_SALIDA']);
         const cant = limpiarNumero(v['CANTIDAD']);
+        const sku = v['SKU'];
         
         if (cant > 0 && total > 0) {
+            // Buscar costo por SKU
+            const producto = catalogo.find(p => p['SKU'] === sku);
+            const costoUnit = producto ? limpiarNumero(producto['COSTO_UNITARIO']) : 0;
+            const costoVenta = costoUnit * cant;
+            
+            console.log(`✅ ${sku}: ${cant} × S/ ${total/cant} - costo S/ ${costoUnit} = ganancia S/ ${total - costoVenta}`);
+            
             ingresos += total;
+            costoTotal += costoVenta;
             pedidos++;
-            console.log('✅ VENTA:', v['CANAL_VENTA'], '=', total);
         }
     });
     
@@ -86,7 +80,7 @@ function calcularKPIs(catalogo, ventas) {
         }
     });
     
-    const beneficio = Math.round(ingresos * 0.4);
+    const beneficio = ingresos - costoTotal; // ⭐ BENEFICIO REAL
     const ticket = pedidos > 0 ? Math.round(ingresos / pedidos) : 0;
     
     document.getElementById('kpi-ingresos').textContent = 'S/ ' + ingresos.toLocaleString();
@@ -96,99 +90,37 @@ function calcularKPIs(catalogo, ventas) {
     document.getElementById('kpi-productos').textContent = activos;
     document.getElementById('kpi-stock').textContent = bajoStock;
     
-    console.log('📊 TOTAL INGRESOS:', ingresos);
+    console.log('💰 Ingresos:', ingresos);
+    console.log('📦 Costo:', costoTotal);
+    console.log('✨ Beneficio REAL:', beneficio);
 }
 
-// Gráficos - VERSIÓN SIMPLE Y FUNCIONAL
-let chartC, chartCat;
+let chC, chCat;
 
 function generarGraficos(ventas, catalogo) {
-    console.log('🎨 Generando gráficos...');
-    
-    // ⭐ CANALES - Agrupar manualmente
-    const canales = {
-        'Instagram': 0,
-        'WhatsApp': 0,
-        'Web': 0,
-        'Presencial': 0,
-        'Marketplace': 0
-    };
-    
+    const canales = {'Instagram':0,'WhatsApp':0,'Web':0,'Presencial':0,'Marketplace':0,'Otro':0};
     ventas.forEach(v => {
-        const total = limpiarNumero(v['TOTAL_SALIDA']);
-        const canal = v['CANAL_VENTA'] || 'Otro';
-        console.log(`📱 ${canal}: ${total}`);
-        
-        if (canales[canal] !== undefined) {
-            canales[canal] += total;
-        } else {
-            canales['Otro'] = (canales['Otro'] || 0) + total;
-        }
+        const t = limpiarNumero(v['TOTAL_SALIDA']);
+        const c = v['CANAL_VENTA'] || 'Otro';
+        if (t > 0) canales[c] = (canales[c] || 0) + t;
     });
+    Object.keys(canales).forEach(k => { if(canales[k]===0) delete canales[k]; });
     
-    // Limpiar ceros
-    Object.keys(canales).forEach(k => {
-        if (canales[k] === 0) delete canales[k];
-    });
-    
-    console.log('📊 Canales finales:', canales);
-    
-    // Dibujar
     const ctxC = document.getElementById('chart-canales');
-    if (chartC) chartC.destroy();
+    if (chC) chC.destroy();
+    chC = new Chart(ctxC, {type:'doughnut',data:{labels:Object.keys(canales),datasets:[{data:Object.values(canales),backgroundColor:['#E1306C','#25D366','#3b5998','#FFD700','#9C27B0']}]}});
     
-    if (Object.keys(canales).length === 0) {
-        canales['Sin datos'] = 1;
-    }
-    
-    chartC = new Chart(ctxC, {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(canales),
-            datasets: [{
-                data: Object.values(canales),
-                backgroundColor: ['#E1306C', '#25D366', '#3b5998', '#FFD700', '#9C27B0', '#DDA7A5'],
-                borderWidth: 0
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'bottom' }
-            }
-        }
-    });
-    
-    // Categorías
     const cats = {};
-    catalogo.forEach(p => {
-        const c = p['CATEGORÍA'] || 'Otro';
-        cats[c] = (cats[c] || 0) + 1;
-    });
-    
+    catalogo.forEach(p => { const c = p['CATEGORÍA'] || 'Otro'; cats[c] = (cats[c]||0)+1; });
     const ctx = document.getElementById('chart-categorias');
-    if (chartCat) chartCat.destroy();
-    chartCat = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: Object.keys(cats),
-            datasets: [{ data: Object.values(cats), backgroundColor: '#DDA7A5', borderRadius: 8 }]
-        },
-        options: { responsive: true }
-    });
+    if (chCat) chCat.destroy();
+    chCat = new Chart(ctx, {type:'bar',data:{labels:Object.keys(cats),datasets:[{data:Object.values(cats),backgroundColor:'#DDA7A5'}]}});
 }
 
 function mostrarAlertas(catalogo) {
     const tbody = document.getElementById('alerts-body');
-    const bajo = catalogo.filter(p => {
-        const s = limpiarNumero(p['STOCK_ACTUAL']);
-        const m = limpiarNumero(p['STOCK_MINIMO']);
-        return p['ESTADO'] === 'Activo' && s < m;
-    });
-    
-    tbody.innerHTML = bajo.length === 0 
-        ? '<tr><td colspan="5">✅ Stock OK</td></tr>'
-        : bajo.map(p => `<tr><td>${p['NOMBRE_PRODUCTO']}</td><td>${p['SKU']}</td><td>${p['STOCK_ACTUAL']}</td><td>${p['STOCK_MINIMO']}</td><td>⚠️</td></tr>`).join('');
+    const bajo = catalogo.filter(p => limpiarNumero(p['STOCK_ACTUAL']) < limpiarNumero(p['STOCK_MINIMO']) && p['ESTADO']==='Activo');
+    tbody.innerHTML = bajo.length===0 ? '<tr><td>✅ Stock OK</td></tr>' : bajo.map(p => `<tr><td>${p['NOMBRE_PRODUCTO']}</td><td>${p['SKU']}</td><td>${p['STOCK_ACTUAL']}</td><td>${p['STOCK_MINIMO']}</td><td>⚠️</td></tr>`).join('');
 }
 
 window.onload = actualizarDashboard;
