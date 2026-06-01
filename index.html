@@ -4,34 +4,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Alma Prints</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Alma Prints - Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-[#FAF8F5] font-sans">
-    <nav class="bg-[#3E2723] text-[#F5F5DC] p-4 shadow-md">
-        <h1 class="text-2xl font-bold text-center">Alma Prints - Panel de Gestión</h1>
-    </nav>
-    <div class="max-w-6xl mx-auto mt-8 p-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 border-[#DDA7A5] text-center">
-                <h3 class="text-[#3E2723] font-bold text-lg">Ventas Totales (S/.)</h3>
-                <p id="totalVentas" class="text-3xl font-bold text-black mt-2">Cargando...</p>
+<body>
+    <header class="header">
+        <div class="logo">🎨 Alma Prints</div>
+        <p class="tagline">Dashboard Ejecutivo - Lima, Perú 🇵🇪</p>
+    </header>
+
+    <main class="container">
+        <button class="btn-refresh" onclick="actualizarDashboard()">
+            🔄 Actualizar Datos
+        </button>
+
+        <!-- KPIs -->
+        <div class="kpi-grid">
+            <div class="kpi-card kpi-ingresos">
+                <span class="kpi-icon">💵</span>
+                <span class="kpi-title">Ingresos Totales</span>
+                <span class="kpi-value" id="kpi-ingresos">S/. 0.00</span>
             </div>
-            <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 border-[#DDA7A5] text-center">
-                <h3 class="text-[#3E2723] font-bold text-lg">Productos Activos</h3>
-                <p id="totalProductos" class="text-3xl font-bold text-black mt-2">Cargando...</p>
+            <div class="kpi-card kpi-beneficio">
+                <span class="kpi-icon">✨</span>
+                <span class="kpi-title">Beneficio Neto</span>
+                <span class="kpi-value" id="kpi-beneficio">S/. 0.00</span>
             </div>
-            <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 border-[#DDA7A5] text-center">
-                <h3 class="text-[#3E2723] font-bold text-lg">Alertas Stock</h3>
-                <p id="alertasStock" class="text-3xl font-bold text-red-600 mt-2">Cargando...</p>
+            <div class="kpi-card kpi-ticket">
+                <span class="kpi-icon">🎫</span>
+                <span class="kpi-title">Ticket Promedio</span>
+                <span class="kpi-value" id="kpi-ticket">S/. 0.00</span>
+            </div>
+            <div class="kpi-card kpi-pedidos">
+                <span class="kpi-icon">📋</span>
+                <span class="kpi-title">Total Pedidos</span>
+                <span class="kpi-value" id="kpi-pedidos">0</span>
+            </div>
+            <div class="kpi-card kpi-productos">
+                <span class="kpi-icon">🎨</span>
+                <span class="kpi-title">Productos Activos</span>
+                <span class="kpi-value" id="kpi-productos">0</span>
+            </div>
+            <div class="kpi-card kpi-stock">
+                <span class="kpi-icon">⚠️</span>
+                <span class="kpi-title">Stock Bajo</span>
+                <span class="kpi-value" id="kpi-stock">0</span>
             </div>
         </div>
-        <div class="bg-white p-6 rounded-lg shadow-lg">
-            <h2 class="text-[#3E2723] font-bold text-xl mb-4 text-center">Stock Actual por Producto</h2>
-            <canvas id="graficoVentas"></canvas>
+
+        <!-- Gráficos -->
+        <div class="charts-section">
+            <div class="chart-box">
+                <h3>📱 Ventas por Canal</h3>
+                <canvas id="chart-canales"></canvas>
+            </div>
+            <div class="chart-box">
+                <h3>🎯 Productos por Categoría</h3>
+                <canvas id="chart-categorias"></canvas>
+            </div>
         </div>
-    </div>
+
+        <!-- Alertas -->
+        <div class="alerts-section">
+            <h3>⚠️ Productos con Stock Bajo</h3>
+            <table class="alerts-table">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>SKU</th>
+                        <th>Stock</th>
+                        <th>Mínimo</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-body">
+                    <tr><td colspan="5">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <footer>
+        <p>🕐 Actualizado: <span id="last-update">-</span></p>
+    </footer>
+
     <script src="app.js"></script>
 </body>
 </html>
