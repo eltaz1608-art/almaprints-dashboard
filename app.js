@@ -1,6 +1,6 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v13 (CORREGIDO)
+// ALMA PRINTS - DASHBOARD v15 (CSV PARSER MEJORADO)
 // ==========================================
 
 const URL_CATALOGO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=1986570963&single=true&output=csv';
@@ -8,13 +8,12 @@ const URL_VENTAS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNE
 
 function limpiarNumero(valor) {
     if (!valor) return 0;
+    // Quitar S/., comas, espacios
     const limpio = String(valor)
         .replace(/S\/\.\s*/g, '')
         .replace(/,/g, '')
         .trim();
-    const num = parseFloat(limpio);
-    if (isNaN(num) || num < 0.1 || num > 50000) return 0;
-    return num;
+    return parseFloat(limpio) || 0;
 }
 
 async function fetchCSV(url) {
@@ -22,13 +21,37 @@ async function fetchCSV(url) {
     return resp.text();
 }
 
+// ⭐ Parser de CSV que maneja comas dentro de comillas
 function parsearCSV(text) {
     const lineas = text.trim().split('\n');
     const headers = lineas[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    
+    console.log('📋 Headers:', headers);
+    
+    // Procesar cada línea
     return lineas.slice(1).map(linea => {
-        const valores = linea.split(',').map(v => v.trim().replace(/"/g, ''));
+        const valores = [];
+        let actual = '';
+        let enComillas = false;
+        
+        for (let i = 0; i < linea.length; i++) {
+            const char = linea[i];
+            
+            if (char === '"') {
+                enComillas = !enComillas;
+            } else if (char === ',' && !enComillas) {
+                valores.push(actual.trim());
+                actual = '';
+            } else {
+                actual += char;
+            }
+        }
+        valores.push(actual.trim()); // último valor
+        
         const obj = {};
-        headers.forEach((h, i) => obj[h] = valores[i] || '');
+        headers.forEach((h, i) => {
+            obj[h] = valores[i] || '';
+        });
         return obj;
     }).filter(d => Object.values(d).some(v => v));
 }
@@ -65,14 +88,14 @@ function calcularKPIs(catalogo, ventas) {
         const sku = v['SKU'] || '';
         const canal = v['CANAL_VENTA'] || '';
         
-        console.log(`V${idx}: SKU=${sku}, CANAL=${canal}, CANT=${cant}, TOTAL=${total}`);
+        console.log(`V${idx}: ${sku} | cant=${cant} total=${total} | canal=${canal}`);
         
-        if (sku && cant > 0 && total > 0 && total < 10000) {
+        if (sku && cant > 0 && total > 0) {
             const producto = catalogo.find(p => p['SKU'] === sku);
             const costoUnit = producto ? limpiarNumero(producto['COSTO_UNITARIO']) : 0;
             const costoVenta = costoUnit * cant;
             
-            console.log(`  ✅ ${cant} × S/ ${total/cant}, costo: S/ ${costoUnit} × ${cant}`);
+            console.log(`  ✅ ${cant} × S/ ${total/cant}, costo: S/ ${costoUnit}`);
             
             ingresos += total;
             costoTotal += costoVenta;
@@ -112,7 +135,7 @@ function generarGraficos(ventas, catalogo) {
         const t = limpiarNumero(v['TOTAL_SALIDA']);
         const sku = v['SKU'] || '';
         const c = v['CANAL_VENTA'] || '';
-        if (sku && t > 0 && t < 10000) {
+        if (sku && t > 0) {
             canales[c] = (canales[c] || 0) + t;
         }
     });
@@ -123,7 +146,7 @@ function generarGraficos(ventas, catalogo) {
         type: 'doughnut',
         data: {
             labels: Object.keys(canales).length ? Object.keys(canales) : ['Sin datos'],
-            datasets: [{data: Object.values(canales).length || [1], backgroundColor: ['#E1306C','#25D366']}]
+            datasets: [{data: Object.values(canales).length || [1], backgroundColor: ['#E1306C','#25D366','#3b5998']}]
         },
         options: { responsive: true }
     });
