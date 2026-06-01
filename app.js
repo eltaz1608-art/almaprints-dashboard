@@ -1,6 +1,6 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v16 (ARREGlado)
+// ALMA PRINTS - DASHBOARD v17 (DEBUG GRÁFICO)
 // ==========================================
 
 const URL_CATALOGO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=1986570963&single=true&output=csv';
@@ -8,11 +8,7 @@ const URL_VENTAS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNE
 
 function limpiarNumero(valor) {
     if (!valor) return 0;
-    const limpio = String(valor)
-        .replace(/S\/\.\s*/g, '')
-        .replace(/,/g, '')
-        .trim();
-    return parseFloat(limpio) || 0;
+    return parseFloat(String(valor).replace(/S\/\.\s*/g, '').replace(/,/g, '').trim()) || 0;
 }
 
 async function fetchCSV(url) {
@@ -30,10 +26,8 @@ function parsearCSV(text) {
         for (let i = 0; i < linea.length; i++) {
             const char = linea[i];
             if (char === '"') enComillas = !enComillas;
-            else if (char === ',' && !enComillas) {
-                valores.push(actual.trim());
-                actual = '';
-            } else actual += char;
+            else if (char === ',' && !enComillas) { valores.push(actual.trim()); actual = ''; }
+            else actual += char;
         }
         valores.push(actual.trim());
         const obj = {};
@@ -77,10 +71,7 @@ function calcularKPIs(catalogo, ventas) {
     catalogo.forEach(p => {
         const stock = limpiarNumero(p['STOCK_ACTUAL']);
         const min = limpiarNumero(p['STOCK_MINIMO']);
-        if (p['ESTADO'] === 'Activo') {
-            activos++;
-            if (stock < min) bajoStock++;
-        }
+        if (p['ESTADO'] === 'Activo') { activos++; if (stock < min) bajoStock++; }
     });
     const beneficio = ingresos - costoTotal;
     const ticket = pedidos > 0 ? Math.round(ingresos / pedidos) : 0;
@@ -93,39 +84,78 @@ function calcularKPIs(catalogo, ventas) {
     document.getElementById('kpi-stock').textContent = bajoStock;
 }
 
-let chCanales, chCategorias;
+let chCanales = null;
+let chCategorias = null;
 
 function generarGraficos(ventas, catalogo) {
+    // ⭐ Recolectar datos por canal
     const canales = {};
     ventas.forEach(v => {
-        const t = limpiarNumero(v['TOTAL_SALIDA']);  // ✅ CORREGIDO
-        const sku = v['SKU'] || '';
-        const c = v['CANAL_VENTA'] || '';
-        if (sku && t > 0) {
+        const t = limpiarNumero(v['TOTAL_SALIDA']);
+        const c = v['CANAL_VENTA'] || 'Otro';
+        if (t > 0) {
             canales[c] = (canales[c] || 0) + t;
         }
     });
     
-    const ctxC = document.getElementById('chart-canales');
-    if (chCanales) chCanales.destroy();
-    chCanales = new Chart(ctxC, {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(canales).length ? Object.keys(canales) : ['Sin datos'],
-            datasets: [{data: Object.values(canales).length || [1], backgroundColor: ['#E1306C','#25D366','#3b5998','#FFD700']}]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    console.log('📊 Datos para gráfico canales:', canales);
+    console.log('📊 Labels:', Object.keys(canales));
+    console.log('📊 Data:', Object.values(canales));
+    
+    // Canvas canal
+    const ctxCanal = document.getElementById('chart-canales');
+    console.log('📊 Canvas existe:', !!ctxCanal);
+    
+    if (chCanales) {
+        chCanales.destroy();
+        chCanales = null;
+    }
+    
+    // Solo crear si hay datos
+    if (Object.keys(canales).length > 0) {
+        chCanales = new Chart(ctxCanal, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(canales),
+                datasets: [{
+                    data: Object.values(canales),
+                    backgroundColor: ['#E1306C', '#25D366', '#3b5998', '#FFD700', '#9C27B0'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    title: { display: true, text: 'Ventas por Canal' }
+                }
+            }
+        });
+        console.log('📊 Gráfico canales creado');
+    }
+    
+    // Categorías
+    const cats = {};
+    catalogo.forEach(p => {
+        const c = p['CATEGORÍA'] || 'Otro';
+        cats[c] = (cats[c] || 0) + 1;
     });
     
-    const cats = {};
-    catalogo.forEach(p => { const c = p['CATEGORÍA'] || 'Otro'; cats[c] = (cats[c]||0)+1; });
-    const ctx = document.getElementById('chart-categorias');
-    if (chCategorias) chCategorias.destroy();
-    chCategorias = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: Object.keys(cats), datasets: [{data: Object.values(cats), backgroundColor: '#DDA7A5'}] },
-        options: { responsive: true }
-    });
+    const ctxCat = document.getElementById('chart-categorias');
+    if (chCategorias) { chCategorias.destroy(); chCategorias = null; }
+    
+    if (Object.keys(cats).length > 0) {
+        chCategorias = new Chart(ctxCat, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(cats),
+                datasets: [{ data: Object.values(cats), backgroundColor: '#DDA7A5' }]
+            },
+            options: { responsive: true }
+        });
+    }
 }
 
 function mostrarAlertas(catalogo) {
