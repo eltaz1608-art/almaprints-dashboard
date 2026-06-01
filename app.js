@@ -1,42 +1,33 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v6 (ENLACE PUBLICO)
+// ALMA PRINTS - DASHBOARD v7 FINAL
 // ==========================================
 
-// Tu enlace de publicación directa
-const URL_PUBLICA = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?output=csv';
+// 💾 TUS ENLACES PUBLICADOS
+const URL_CATALOGO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=1986570963&single=true&output=csv';
 
-async function fetchDatos() {
-    console.log('📥 Descargando desde enlace público...');
-    
-    const response = await fetch(URL_PUBLICA);
+const URL_VENTAS = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=2131622946&single=true&output=csv';
+
+async function fetchCSV(url, nombre) {
+    console.log(`📥 Descargando ${nombre}...`);
+    const response = await fetch(url);
     const text = await response.text();
-    
-    console.log('📄 Primeros 300 chars:', text.substring(0, 300));
-    
+    console.log(`📄 ${nombre} (primeros 150):`, text.substring(0, 150));
     return text;
 }
 
-function parseCSVCompleto(text) {
+function parsearCSV(text) {
     const lineas = text.trim().split('\n');
-    console.log('📋 Total líneas:', lineas.length);
-    
-    // Encabezados (primera línea = hoja 1)
     const headers = lineas[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    console.log('📊 Encabezados hoja 1:', headers);
     
-    // Datos de la primera hoja
-    const datos = lineas.slice(1).map(linea => {
+    console.log('📊 Encabezados:', headers);
+    
+    return lineas.slice(1).map(linea => {
         const valores = linea.split(',').map(v => v.trim().replace(/"/g, ''));
         const obj = {};
         headers.forEach((h, i) => obj[h] = valores[i] || '');
         return obj;
-    }).filter(d => d[headers[0]]); // Eliminar filas vacías
-    
-    console.log('📦 Datos parseados:', datos.length);
-    console.log('👀 Primer registro:', datos[0]);
-    
-    return datos;
+    }).filter(d => Object.values(d).some(v => v));
 }
 
 async function actualizarDashboard() {
@@ -45,43 +36,25 @@ async function actualizarDashboard() {
     btn.disabled = true;
     
     try {
-        console.log('=== INICIO v6 ===');
+        console.log('=== 🚀 INICIO ===');
         
-        const csvText = await fetchDatos();
-        const datos = parseCSVCompleto(csvText);
+        const [csvCat, csvVen] = await Promise.all([
+            fetchCSV(URL_CATALOGO, 'Catálogo'),
+            fetchCSV(URL_VENTAS, 'Ventas')
+        ]);
         
-        if (datos.length === 0) {
-            alert('⚠️ No hay datos');
-            return;
-        }
-        
-        // Detectar tipo de datos por encabezados
-        const headers = Object.keys(datos[0]);
-        console.log('🔑 Todas las columnas:', headers);
-        
-        // Determinar si es catálogo o ventas
-        const esCatalogo = headers.includes('SKU') && headers.includes('CATEGORÍA');
-        const esVentas = headers.includes('CLIENTE') && headers.includes('CANAL');
-        
-        console.log('¿Es catálogo?', esCatalogo);
-        console.log('¿Es ventas?', esVentas);
-        
-        let catalogo = [];
-        let ventas = [];
-        
-        if (esCatalogo) {
-            catalogo = datos;
-        } else if (esVentas) {
-            ventas = datos;
-        }
-        
-        // Si no puede detectar, usar todo como catálogo
-        if (catalogo.length === 0 && ventas.length === 0) {
-            catalogo = datos;
-        }
+        const catalogo = parsearCSV(csvCat);
+        const ventas = parsearCSV(csvVen);
         
         console.log('📦 Productos:', catalogo.length);
         console.log('💰 Ventas:', ventas.length);
+        
+        if (catalogo.length > 0) {
+            console.log('👀 Primer producto:', catalogo[0]);
+        }
+        if (ventas.length > 0) {
+            console.log('💵 Primera venta:', ventas[0]);
+        }
         
         calcularKPIs(catalogo, ventas);
         generarGraficos(ventas, catalogo);
@@ -90,7 +63,7 @@ async function actualizarDashboard() {
         document.getElementById('last-update').textContent = new Date().toLocaleString('es-PE', {timeZone: 'America/Lima'});
         
     } catch (error) {
-        console.error('Error:', error);
+        console.error('❌ Error:', error);
         alert('Error: ' + error.message);
     }
     
@@ -102,8 +75,9 @@ async function actualizarDashboard() {
 function calcularKPIs(catalogo, ventas) {
     let ingresos = 0, pedidos = 0, activos = 0, bajoStock = 0;
     
+    // Ventas
     ventas.forEach(v => {
-        const total = parseFloat(v['TOTAL']) || parseFloat(v['TOTAL_SALIDA']) || 0;
+        const total = parseFloat(v['TOTAL_SALIDA']) || parseFloat(v['TOTAL']) || 0;
         const cant = parseFloat(v['CANTIDAD']) || 0;
         if (cant > 0 && total > 0) {
             ingresos += total;
@@ -111,13 +85,12 @@ function calcularKPIs(catalogo, ventas) {
         }
     });
     
+    // Catálogo
     catalogo.forEach(p => {
-        const nombre = p['NOMBRE'] || p['NOMBRE_PRODUCTO'] || p['PRODUCTO'] || '';
-        const stock = parseFloat(p['STOCK']) || parseFloat(p['STOCK_ACTUAL']) || 0;
-        const min = parseFloat(p['MINIMO']) || parseFloat(p['STOCK_MINIMO']) || 0;
+        const nombre = p['NOMBRE_PRODUCTO'] || p['NOMBRE'] || '';
+        const stock = parseFloat(p['STOCK_ACTUAL']) || 0;
+        const min = parseFloat(p['STOCK_MINIMO']) || 0;
         const estado = p['ESTADO'] || '';
-        
-        console.log(`${nombre}: stock=${stock}, min=${min}, estado=${estado}`);
         
         if (estado === 'Activo') {
             activos++;
@@ -139,43 +112,56 @@ function calcularKPIs(catalogo, ventas) {
 }
 
 // Gráficos
-let chartC, chartCat;
+let chC, chCat;
 
 function generarGraficos(ventas, catalogo) {
     const canales = {};
     ventas.forEach(v => {
-        const total = parseFloat(v['TOTAL']) || 0;
-        if (total > 0) {
-            canales[v['CANAL'] || v['CANAL_VENTA'] || 'Otro'] = (canales[v['CANAL']||'Otro'] || 0) + total;
+        const t = parseFloat(v['TOTAL_SALIDA']) || 0;
+        if (t > 0) {
+            const c = v['CANAL_VENTA'] || 'Otro';
+            canales[c] = (canales[c] || 0) + t;
         }
     });
     
     const ctxC = document.getElementById('chart-canales');
-    if (chartC) chartC.destroy();
-    chartC = new Chart(ctxC, { type: 'doughnut', data: { labels: Object.keys(canales), datasets: [{ data: Object.values(canales), backgroundColor: ['#E1306C','#25D366'] }] } });
-    
-    const categorias = {};
-    catalogo.forEach(p => {
-        const c = p['CATEGORÍA'] || p['CATEG'] || 'Otro';
-        categorias[c] = (categorias[c] || 0) + 1;
+    if (chC) chC.destroy();
+    chC = new Chart(ctxC, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(canales).length ? Object.keys(canales) : ['Sin datos'],
+            datasets: [{ data: Object.values(canales).length || [1], backgroundColor: ['#E1306C','#25D366','#FFD700','#DDA7A5'] }]
+        }
     });
     
-    const ctxCat = document.getElementById('chart-categorias');
-    if (chartCat) chartCat.destroy();
-    chartCat = new Chart(ctxCat, { type: 'bar', data: { labels: Object.keys(categorias), datasets: [{ data: Object.values(categorias), backgroundColor: '#DDA7A5' }] } });
+    const cats = {};
+    catalogo.forEach(p => {
+        const c = p['CATEGORÍA'] || 'Otro';
+        cats[c] = (cats[c] || 0) + 1;
+    });
+    
+    const ctx = document.getElementById('chart-categorias');
+    if (chCat) chCat.destroy();
+    chCat = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(cats),
+            datasets: [{ data: Object.values(cats), backgroundColor: '#DDA7A5' }]
+        }
+    });
 }
 
 function mostrarAlertas(catalogo) {
     const tbody = document.getElementById('alerts-body');
     const bajo = catalogo.filter(p => {
-        const stock = parseFloat(p['STOCK']) || parseFloat(p['STOCK_ACTUAL']) || 0;
-        const min = parseFloat(p['MINIMO']) || parseFloat(p['STOCK_MINIMO']) || 0;
-        return p['ESTADO'] === 'Activo' && stock < min;
+        const s = parseFloat(p['STOCK_ACTUAL']) || 0;
+        const m = parseFloat(p['STOCK_MINIMO']) || 0;
+        return p['ESTADO'] === 'Activo' && s < m;
     });
     
     tbody.innerHTML = bajo.length === 0 
         ? '<tr><td colspan="5" style="text-align:center;">✅ Stock OK</td></tr>'
-        : bajo.map(p => `<tr><td>${p['NOMBRE']||p['NOMBRE_PRODUCTO']}</td><td>${p['SKU']}</td><td>${p['STOCK']}</td><td>${p['MINIMO']}</td><td>⚠️</td></tr>`).join('');
+        : bajo.map(p => `<tr><td>${p['NOMBRE_PRODUCTO']}</td><td>${p['SKU']}</td><td>${p['STOCK_ACTUAL']}</td><td>${p['STOCK_MINIMO']}</td><td>⚠️</td></tr>`).join('');
 }
 
 window.onload = actualizarDashboard;
