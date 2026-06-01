@@ -1,6 +1,6 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v17 (DEBUG GRÁFICO)
+// ALMA PRINTS - DASHBOARD v18 FINAL
 // ==========================================
 
 const URL_CATALOGO = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?gid=1986570963&single=true&output=csv';
@@ -88,73 +88,32 @@ let chCanales = null;
 let chCategorias = null;
 
 function generarGraficos(ventas, catalogo) {
-    // ⭐ Recolectar datos por canal
     const canales = {};
     ventas.forEach(v => {
         const t = limpiarNumero(v['TOTAL_SALIDA']);
         const c = v['CANAL_VENTA'] || 'Otro';
-        if (t > 0) {
-            canales[c] = (canales[c] || 0) + t;
-        }
+        if (t > 0) canales[c] = (canales[c] || 0) + t;
     });
     
-    console.log('📊 Datos para gráfico canales:', canales);
-    console.log('📊 Labels:', Object.keys(canales));
-    console.log('📊 Data:', Object.values(canales));
-    
-    // Canvas canal
     const ctxCanal = document.getElementById('chart-canales');
-    console.log('📊 Canvas existe:', !!ctxCanal);
-    
-    if (chCanales) {
-        chCanales.destroy();
-        chCanales = null;
-    }
-    
-    // Solo crear si hay datos
+    if (chCanales) chCanales.destroy();
     if (Object.keys(canales).length > 0) {
         chCanales = new Chart(ctxCanal, {
             type: 'doughnut',
             data: {
                 labels: Object.keys(canales),
-                datasets: [{
-                    data: Object.values(canales),
-                    backgroundColor: ['#E1306C', '#25D366', '#3b5998', '#FFD700', '#9C27B0'],
-                    borderWidth: 2,
-                    borderColor: '#ffffff'
-                }]
+                datasets: [{ data: Object.values(canales), backgroundColor: ['#E1306C', '#25D366', '#3b5998', '#FFD700', '#9C27B0'], borderWidth: 2, borderColor: '#ffffff' }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    title: { display: true, text: 'Ventas por Canal' }
-                }
-            }
+            options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
         });
-        console.log('📊 Gráfico canales creado');
     }
     
-    // Categorías
     const cats = {};
-    catalogo.forEach(p => {
-        const c = p['CATEGORÍA'] || 'Otro';
-        cats[c] = (cats[c] || 0) + 1;
-    });
-    
+    catalogo.forEach(p => { const c = p['CATEGORÍA'] || 'Otro'; cats[c] = (cats[c] || 0) + 1; });
     const ctxCat = document.getElementById('chart-categorias');
-    if (chCategorias) { chCategorias.destroy(); chCategorias = null; }
-    
+    if (chCategorias) chCategorias.destroy();
     if (Object.keys(cats).length > 0) {
-        chCategorias = new Chart(ctxCat, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(cats),
-                datasets: [{ data: Object.values(cats), backgroundColor: '#DDA7A5' }]
-            },
-            options: { responsive: true }
-        });
+        chCategorias = new Chart(ctxCat, { type: 'bar', data: { labels: Object.keys(cats), datasets: [{ data: Object.values(cats), backgroundColor: '#DDA7A5' }] }, options: { responsive: true } });
     }
 }
 
