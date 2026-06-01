@@ -1,0 +1,65 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Alma Prints</title>
+    <!-- Importamos Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración de colores de tu marca -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        marrón: '#3E2723',
+                        beige: '#F5F5DC',
+                        rosapalo: '#DDA7A5',
+                        negro: '#1A1A1A'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Importamos Chart.js para los gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-beige font-sans">
+    
+    <!-- Barra Superior -->
+    <nav class="bg-marrón text-beige p-4 shadow-md">
+        <h1 class="text-2xl font-bold text-center">Alma Prints - Panel de Gestión</h1>
+    </nav>
+
+    <!-- Contenedor Principal -->
+    <div class="max-w-6xl mx-auto mt-8 p-4">
+        
+        <!-- Tarjetas de Resumen -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 border-rosapalo text-center">
+                <h3 class="text-marrón font-bold text-lg">Total Ventas (S/.)</h3>
+                <p id="totalVentas" class="text-3xl font-bold text-negro mt-2">Cargando...</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 border-rosapalo text-center">
+                <h3 class="text-marrón font-bold text-lg">Productos Activos</h3>
+                <p id="totalProductos" class="text-3xl font-bold text-negro mt-2">Cargando...</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-lg border-t-4 border-rosapalo text-center">
+                <h3 class="text-marrón font-bold text-lg">Alertas de Stock</h3>
+                <p id="alertasStock" class="text-3xl font-bold text-red-600 mt-2">Cargando...</p>
+            </div>
+        </div>
+
+        <!-- Zona de Gráficos -->
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-marrón font-bold text-xl mb-4 text-center">Top Diseños Más Vendidos</h2>
+            <canvas id="graficoVentas"></canvas>
+        </div>
+
+    </div>
+
+    <!-- Conectamos el archivo de lógica -->
+    <script src="app.js"></script>
+</body>
+</html>
