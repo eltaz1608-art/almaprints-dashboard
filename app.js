@@ -1,54 +1,42 @@
 
 // ==========================================
-// ALMA PRINTS - DASHBOARD v3 (CORREGIDO)
+// ALMA PRINTS - DASHBOARD v6 (ENLACE PUBLICO)
 // ==========================================
 
-const CONFIG = {
-    SHEET_ID: '1yDpg679-IZ-oJmn4MclEqOdp6czLfPdG5GMGbdqZTtk'
-};
+// Tu enlace de publicación directa
+const URL_PUBLICA = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSk2HaPMvDNEFZmTGWAJ2uPSzyrxSkeganv7haL98f8oxfrEkNT6QwVqIR2sj4Rmt-WHUf2LkGsxXsw/pub?output=csv';
 
-// URLs - NOTA: Los nombres van SIN acentos en la URL
-const getSheetURL = (sheetName) => 
-    `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}`;
-
-// ==========================================
-// PRINCIPAL
-// ==========================================
-
-async function fetchSheet(sheetName) {
-    try {
-        const url = getSheetURL(sheetName);
-        console.log('📥 Obteniendo:', sheetName, 'desde:', url);
-        
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Error: ' + response.status);
-        
-        const csvText = await response.text();
-        console.log('📄 Raw CSV (primeros 200 chars):', csvText.substring(0, 200));
-        
-        return parseCSV(csvText);
-    } catch (error) {
-        console.error(`Error ${sheetName}:`, error);
-        return [];
-    }
+async function fetchDatos() {
+    console.log('📥 Descargando desde enlace público...');
+    
+    const response = await fetch(URL_PUBLICA);
+    const text = await response.text();
+    
+    console.log('📄 Primeros 300 chars:', text.substring(0, 300));
+    
+    return text;
 }
 
-function parseCSV(text) {
-    const lines = text.trim().split('\n');
-    console.log('📋 Total filas:', lines.length);
+function parseCSVCompleto(text) {
+    const lineas = text.trim().split('\n');
+    console.log('📋 Total líneas:', lineas.length);
     
-    // Los encabezados pueden tener acentos
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    console.log('📊 Encabezados:', headers);
+    // Encabezados (primera línea = hoja 1)
+    const headers = lineas[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    console.log('📊 Encabezados hoja 1:', headers);
     
-    return lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+    // Datos de la primera hoja
+    const datos = lineas.slice(1).map(linea => {
+        const valores = linea.split(',').map(v => v.trim().replace(/"/g, ''));
         const obj = {};
-        headers.forEach((header, index) => {
-            obj[header] = values[index] || '';
-        });
+        headers.forEach((h, i) => obj[h] = valores[i] || '');
         return obj;
-    });
+    }).filter(d => d[headers[0]]); // Eliminar filas vacías
+    
+    console.log('📦 Datos parseados:', datos.length);
+    console.log('👀 Primer registro:', datos[0]);
+    
+    return datos;
 }
 
 async function actualizarDashboard() {
@@ -57,208 +45,137 @@ async function actualizarDashboard() {
     btn.disabled = true;
     
     try {
-        console.log('=== 🔄 INICIANDO DASHBOARD ===');
+        console.log('=== INICIO v6 ===');
         
-        // NOTA: Los nombres van SIN acentos en la URL
-        const [catalogo, ventas] = await Promise.all([
-            fetchSheet('CATÁLOGO_PRODUCTOS'),
-            fetchSheet('REGISTRO_SALIDAS')
-        ]);
+        const csvText = await fetchDatos();
+        const datos = parseCSVCompleto(csvText);
         
-        console.log('📦 Productos obtenidos:', catalogo.length);
-        console.log('💰 Ventas obtenidas:', ventas.length);
-        
-        if (catalogo.length > 0) {
-            console.log('👀 Primer producto:', catalogo[0]);
+        if (datos.length === 0) {
+            alert('⚠️ No hay datos');
+            return;
         }
-        if (ventas.length > 0) {
-            console.log('👀 Primera venta:', ventas[0]);
+        
+        // Detectar tipo de datos por encabezados
+        const headers = Object.keys(datos[0]);
+        console.log('🔑 Todas las columnas:', headers);
+        
+        // Determinar si es catálogo o ventas
+        const esCatalogo = headers.includes('SKU') && headers.includes('CATEGORÍA');
+        const esVentas = headers.includes('CLIENTE') && headers.includes('CANAL');
+        
+        console.log('¿Es catálogo?', esCatalogo);
+        console.log('¿Es ventas?', esVentas);
+        
+        let catalogo = [];
+        let ventas = [];
+        
+        if (esCatalogo) {
+            catalogo = datos;
+        } else if (esVentas) {
+            ventas = datos;
         }
+        
+        // Si no puede detectar, usar todo como catálogo
+        if (catalogo.length === 0 && ventas.length === 0) {
+            catalogo = datos;
+        }
+        
+        console.log('📦 Productos:', catalogo.length);
+        console.log('💰 Ventas:', ventas.length);
         
         calcularKPIs(catalogo, ventas);
         generarGraficos(ventas, catalogo);
         mostrarAlertas(catalogo);
         
-        document.getElementById('last-update').textContent = new Date().toLocaleString('es-PE', {
-            timeZone: 'America/Lima',
-            dateStyle: 'medium',
-            timeStyle: 'short'
-        });
+        document.getElementById('last-update').textContent = new Date().toLocaleString('es-PE', {timeZone: 'America/Lima'});
         
     } catch (error) {
-        console.error('Error completo:', error);
-        alert('⚠️ Error: ' + error.message);
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
     }
     
     btn.textContent = '🔄 Actualizar Datos';
     btn.disabled = false;
 }
 
-// ==========================================
-// KPIs - Adaptado a tus columnas CON acentos
-// ==========================================
-
+// KPIs
 function calcularKPIs(catalogo, ventas) {
-    let ingresos = 0, pedidos = 0, productosActivos = 0, stockBajo = 0;
+    let ingresos = 0, pedidos = 0, activos = 0, bajoStock = 0;
     
-    // Tus columnas exactas (del Apps Script):
-    // SKU | NOMBRE_PRODUCTO | CATEGORÍA | DESCRIPCIÓN | TALLA | COLOR | MATERIAL | PROVEEDOR | COSTO_UNITARIO | PRECIO_VENTA | MARGEN_BENEFICIO | STOCK_ACTUAL | STOCK_MINIMO | ESTADO | FECHA_ALTA | ULTIMA_ENTRADA | ULTIMA_SALIDA | ROTACIÓN | PROVEEDOR_CONTACTO | NOTAS
-    
-    // Columnas de VENTAS:
-    // ID_SALIDA | FECHA | NÚMERO_PEDIDO | CLIENTE | CANAL_VENTA | SKU | PRODUCTO | TALLA | CANTIDAD | PRECIO_UNITARIO | TOTAL_SALIDA | TIPO_SALIDA | ESTADO_PEDIDO | MÉTODO_PAGO | FECHA_ENTREGA | UBICACIÓN | NOTAS
-    
-    console.log('🔍 Procesando ventas...');
-    
-    ventas.forEach((v, i) => {
-        console.log(`Venta ${i}:`, v);
-        
-        const total = parseFloat(v['TOTAL_SALIDA']) || 0;
-        const tipo = v['TIPO_SALIDA'] || '';
-        
-        console.log(`  Total: ${total}, Tipo: ${tipo}`);
-        
-        // Aceptar ventas sin tipo específicoTambién o con "Venta"
-        if ((tipo === '' || tipo === 'Venta') && total > 0) {
+    ventas.forEach(v => {
+        const total = parseFloat(v['TOTAL']) || parseFloat(v['TOTAL_SALIDA']) || 0;
+        const cant = parseFloat(v['CANTIDAD']) || 0;
+        if (cant > 0 && total > 0) {
             ingresos += total;
             pedidos++;
         }
     });
     
-    console.log('🔍 Procesando catálogo...');
-    
-    catalogo.forEach((p, i) => {
-        console.log(`Producto ${i}:`, p);
-        
-        const stock = parseFloat(p['STOCK_ACTUAL']) || 0;
-        const min = parseFloat(p['STOCK_MINIMO']) || 0;
+    catalogo.forEach(p => {
+        const nombre = p['NOMBRE'] || p['NOMBRE_PRODUCTO'] || p['PRODUCTO'] || '';
+        const stock = parseFloat(p['STOCK']) || parseFloat(p['STOCK_ACTUAL']) || 0;
+        const min = parseFloat(p['MINIMO']) || parseFloat(p['STOCK_MINIMO']) || 0;
         const estado = p['ESTADO'] || '';
         
-        console.log(`  Stock: ${stock}, Min: ${min}, Estado: ${estado}`);
+        console.log(`${nombre}: stock=${stock}, min=${min}, estado=${estado}`);
         
         if (estado === 'Activo') {
-            productosActivos++;
-            if (stock < min) {
-                stockBajo++;
-            }
+            activos++;
+            if (stock < min) bajoStock++;
         }
     });
     
-    const beneficio = ingresos * 0.4; // 40% margen estimado
-    const ticket = pedidos > 0 ? ingresos / pedidos : 0;
+    const beneficio = Math.round(ingresos * 0.4);
+    const ticket = pedidos > 0 ? Math.round(ingresos / pedidos) : 0;
     
-    console.log('=== RESULTADOS ===');
-    console.log('Ingresos:', ingresos);
-    console.log('Pedidos:', pedidos);
-    console.log('Productos activos:', productosActivos);
-    console.log('Stock bajo:', stockBajo);
-    
-    // Actualizar HTML
-    document.getElementById('kpi-ingresos').textContent = formatCurrency(ingresos);
-    document.getElementById('kpi-beneficio').textContent = formatCurrency(beneficio);
-    document.getElementById('kpi-ticket').textContent = formatCurrency(ticket);
+    document.getElementById('kpi-ingresos').textContent = 'S/ ' + ingresos.toLocaleString();
+    document.getElementById('kpi-beneficio').textContent = 'S/ ' + beneficio.toLocaleString();
+    document.getElementById('kpi-ticket').textContent = 'S/ ' + ticket.toLocaleString();
     document.getElementById('kpi-pedidos').textContent = pedidos;
-    document.getElementById('kpi-productos').textContent = productosActivos;
-    document.getElementById('kpi-stock').textContent = stockBajo;
+    document.getElementById('kpi-productos').textContent = activos;
+    document.getElementById('kpi-stock').textContent = bajoStock;
+    
+    console.log('✅ RESULTADO:', {ingresos, pedidos, activos, bajoStock});
 }
 
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('es-PE', { 
-        style: 'currency', 
-        currency: 'PEN' 
-    }).format(amount);
-}
-
-// ==========================================
-// GRÁFICOS
-// ==========================================
-
-let chartCanales, chartCategorias;
+// Gráficos
+let chartC, chartCat;
 
 function generarGraficos(ventas, catalogo) {
-    console.log('📈 Generando gráficos...');
-    
-    // Canales de venta
     const canales = {};
     ventas.forEach(v => {
-        const total = parseFloat(v['TOTAL_SALIDA']) || 0;
-        const tipo = v['TIPO_SALIDA'] || '';
-        const canal = v['CANAL_VENTA'] || 'Otro';
-        
-        if ((tipo === '' || tipo === 'Venta') && total > 0) {
-            canales[canal] = (canales[canal] || 0) + total;
+        const total = parseFloat(v['TOTAL']) || 0;
+        if (total > 0) {
+            canales[v['CANAL'] || v['CANAL_VENTA'] || 'Otro'] = (canales[v['CANAL']||'Otro'] || 0) + total;
         }
     });
     
-    console.log('Canales:', canales);
+    const ctxC = document.getElementById('chart-canales');
+    if (chartC) chartC.destroy();
+    chartC = new Chart(ctxC, { type: 'doughnut', data: { labels: Object.keys(canales), datasets: [{ data: Object.values(canales), backgroundColor: ['#E1306C','#25D366'] }] } });
     
-    const ctxCanales = document.getElementById('chart-canales');
-    if (chartCanales) chartCanales.destroy();
-    chartCanales = new Chart(ctxCanales, {
-        type: 'doughnut',
-        data: {
-            labels: Object.keys(canales).length ? Object.keys(canales) : ['Sin datos'],
-            datasets: [{ 
-                data: Object.values(canales).length ? Object.values(canales) : [1], 
-                backgroundColor: ['#E1306C', '#25D366', '#3b5998', '#FFD700', '#DDA7A5'], 
-                borderWidth: 0 
-            }]
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-    });
-    
-    // Categorías
     const categorias = {};
     catalogo.forEach(p => {
-        const cat = p['CATEGORÍA'] || 'Sin categoría';
-        categorias[cat] = (categorias[cat] || 0) + 1;
+        const c = p['CATEGORÍA'] || p['CATEG'] || 'Otro';
+        categorias[c] = (categorias[c] || 0) + 1;
     });
     
-    console.log('Categorías:', categorias);
-    
-    const ctxCategorias = document.getElementById('chart-categorias');
-    if (chartCategorias) chartCategorias.destroy();
-    chartCategorias = new Chart(ctxCategorias, {
-        type: 'bar',
-        data: {
-            labels: Object.keys(categorias),
-            datasets: [{ label: 'Productos', data: Object.values(categorias), backgroundColor: '#DDA7A5', borderRadius: 8 }]
-        },
-        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    });
+    const ctxCat = document.getElementById('chart-categorias');
+    if (chartCat) chartCat.destroy();
+    chartCat = new Chart(ctxCat, { type: 'bar', data: { labels: Object.keys(categorias), datasets: [{ data: Object.values(categorias), backgroundColor: '#DDA7A5' }] } });
 }
-
-// ==========================================
-// ALERTAS
-// ==========================================
 
 function mostrarAlertas(catalogo) {
     const tbody = document.getElementById('alerts-body');
-    let html = '';
-    
-    const productosBajoStock = catalogo.filter(p => {
-        const stock = parseFloat(p['STOCK_ACTUAL']) || 0;
-        const min = parseFloat(p['STOCK_MINIMO']) || 0;
+    const bajo = catalogo.filter(p => {
+        const stock = parseFloat(p['STOCK']) || parseFloat(p['STOCK_ACTUAL']) || 0;
+        const min = parseFloat(p['MINIMO']) || parseFloat(p['STOCK_MINIMO']) || 0;
         return p['ESTADO'] === 'Activo' && stock < min;
     });
     
-    console.log('⚠️ Productos bajo stock:', productosBajoStock.length);
-    
-    if (productosBajoStock.length === 0) {
-        html = '<tr><td colspan="5" style="text-align:center;padding:20px;">✅ Sin alertas - Stock OK</td></tr>';
-    } else {
-        productosBajoStock.forEach(p => {
-            html += `<tr>
-                <td>${p['NOMBRE_PRODUCTO']}</td>
-                <td>${p['SKU']}</td>
-                <td>${p['STOCK_ACTUAL']}</td>
-                <td>${p['STOCK_MINIMO']}</td>
-                <td><span class="alerta-badge">⚠️ BAJO</span></td>
-            </tr>`;
-        });
-    }
-    
-    tbody.innerHTML = html;
+    tbody.innerHTML = bajo.length === 0 
+        ? '<tr><td colspan="5" style="text-align:center;">✅ Stock OK</td></tr>'
+        : bajo.map(p => `<tr><td>${p['NOMBRE']||p['NOMBRE_PRODUCTO']}</td><td>${p['SKU']}</td><td>${p['STOCK']}</td><td>${p['MINIMO']}</td><td>⚠️</td></tr>`).join('');
 }
 
-// Iniciar
 window.onload = actualizarDashboard;
